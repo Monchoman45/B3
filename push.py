@@ -1,15 +1,23 @@
 #!/usr/local/bin/python3
 
+#This is a script for gathering everything together and putting it on a MediaWiki installation
+#Which is important because you kind of really need &templates=expand to test
+#You can invoke it with python3 push.py domain username password [summary]
+#domain is any valid hostname, eg. monchbox.wikia.com or localhost
+#It's not terribly smart so if you happen to have any files that don't end in .js or .css
+#and don't start with . it'll think it's a directory and try to open it and explode
+#so don't do that
+
 import sys
 import os
 import http.client
 from urllib.parse import quote
 import json
 
-if len(sys.argv) < 3:
-	print('Usage: .push.py username password [summary]')
+if len(sys.argv) < 4:
+	print('Usage: push.py domain username password [summary]')
 	sys.exit(1)
-elif len(sys.argv) < 4:
+elif len(sys.argv) < 5:
 	sys.argv.append('') #fun
 
 print('Collecting files...')
@@ -26,16 +34,16 @@ while len(dirs):
 		if file.endswith('.js') or file.endswith('.css'):
 			with open(dirname + file) as f: files['MediaWiki:B3.js/' + dirname + file] = f.read()
 			print('\t' + dirname + file + ': ' + str(len(files['MediaWiki:B3.js/' + dirname + file])))
-		elif file[0] != '.':
+		elif file[0] != '.' and file != sys.argv[0]:
 			dirs.append(os.listdir(dirname + file))
 			dirnames.append(dirname + file)
 
 print('Connecting...')
-sock = http.client.HTTPConnection('monchbox.wikia.com', timeout=30)
+sock = http.client.HTTPConnection(sys.argv[1], timeout=30)
 
-print('Logging in as ' + sys.argv[1] + '...')
-user = quote(sys.argv[1])
-password = quote(sys.argv[2])
+print('Logging in as ' + sys.argv[2] + '...')
+user = quote(sys.argv[2])
+password = quote(sys.argv[3])
 sock.request(
 	'POST',
 	'/api.php',
@@ -68,7 +76,7 @@ for page in pages:
 	sock.request(
 		'POST',
 		'/api.php',
-		'action=edit&title=' + pages[page]['title'] + '&text=' + files[pages[page]['title']] + '&reason=' + quote(sys.argv[3]) + '&token=' + quote(pages[page]['edittoken']),
+		'action=edit&title=' + pages[page]['title'] + '&text=' + files[pages[page]['title']] + '&reason=' + quote(sys.argv[4]) + '&token=' + quote(pages[page]['edittoken']),
 		{'Connection': 'Keep alive', 'Cookie': session}
 	)
 	sock.getresponse()
