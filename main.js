@@ -2,7 +2,7 @@ window.B3 = {
 	version: '0.0.1',
 	ui: {},
 	settings: {
-		defaultpath: wgScript.replace('index.php', 'api.php'), //default URL to use for requests
+		defaultpath: wgScriptPath + '/api.php', //default URL to use for requests
 		longpost: 8000, //POST requests where one parameter value is this length or greater will use multipart/form-data
 		maxactive: 10, //Maximum active requests 
 		maxretry: 5 //Maximum number of times to resend requests that are generically bounced
