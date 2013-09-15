@@ -2,7 +2,8 @@ window.B3 = {
 	version: '0.0.1',
 	ui: {},
 	settings: {
-		defaultpath: wgScriptPath + '/api.php', //default URL to use for requests
+		apipath: wgScriptPath + '/api.php', //default URL to use for requests
+		indexpath: wgScriptPath + '/index.php',
 		longpost: 8000, //POST requests where one parameter value is this length or greater will use multipart/form-data
 		maxactive: 10, //Maximum active requests 
 		maxretry: 5 //Maximum number of times to resend requests that are generically bounced
@@ -54,7 +55,7 @@ B3.queue.flush = function() {
  * Queue up a request to the API
  *
  * method - HTTP method to use
- * url - Optional url to use. Defaults to settings.defaultpath
+ * url - Optional url to use. Defaults to settings.apipath
  * req - Object of parameters to send
  * upload - Optional boolean to force use of multipart/form-data
  * success - A function run when a single request is completed without errors
@@ -99,10 +100,10 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 		success = upload;
 		upload = req;
 		req = url;
-		url = B3.settings.defaultpath;
+		url = B3.settings.apipath;
 
-		req.format = 'json'; //defaultpath is probably api.php. It could be index.php, but it really shouldn't be. And it won't matter if it is
-		req.bot = 1;
+		req.format = 'json';
+		req.bot = '1';
 	}
 	if(upload == undefined || typeof upload == 'function') {
 		complete = failure;
@@ -164,7 +165,7 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 				succeeded.push(this);
 				if(typeof success == 'function' && success.call(this, response) === false) {
 					pending++;
-					succeeded.pop(this);
+					succeeded.pop();
 					code = 'rejected';
 					info = 'Success callback rejected the response.';
 				}
@@ -190,7 +191,7 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 					break;
 				}
 			}
-			return xhr;
+			return;
 		}
 		else if(this.status == 0) {
 			var code = 'aborted';
@@ -242,7 +243,7 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 				break;
 			}
 		}
-		if(queueindex == undefined || jobindex == undefined || request == undefined) {throw new Error('Queue error');} //Something really bad happened
+		if(queueindex == undefined || jobindex == undefined || request == undefined) {throw new Error('Failed sanity check');}
 
 		if(typeof failure == 'function') {
 			var resend = failure.call(this, code, info);
@@ -264,7 +265,7 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 
 		B3.queue.flush();
 
-		throw new Error(code + ': ' + info);
+		//throw new Error(code + ': ' + info);
 	}
 
 	for(var i = 0; i < requests.length; i++) {
@@ -302,7 +303,7 @@ B3.api.ajax = function(method, url, req, upload, callback) {
 		callback = upload;
 		upload = req;
 		req = url;
-		url = B3.settings.defaultpath;
+		url = B3.settings.apipath;
 	}
 	if(upload == undefined || typeof upload == 'function') {
 		callback = upload;
@@ -314,12 +315,12 @@ B3.api.ajax = function(method, url, req, upload, callback) {
 	xhr.onreadystatechange = function() {
 		if(this.readyState == 4) {
 			this.onreadystatechange = null; //http://stackoverflow.com/questions/12761255/can-xhr-trigger-onreadystatechange-multiple-times-with-readystate-done
-			callback.call(this);
+			if(typeof callback == 'function') {callback.call(this);}
 		}
 	}
 	xhr.onabort = function() {
-		xhr.onabort = null;
-		callback.call(this);
+		this.onabort = null;
+		if(typeof callback == 'function') {callback.call(this);}
 	}
 	if(method == 'POST') {
 		xhr.open(method, url, true);
