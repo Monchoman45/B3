@@ -9,7 +9,6 @@ window.B3 = {
 		maxretry: 5 //Maximum number of times to resend requests that are generically bounced
 	},
 	queue: {
-		xhrs: [], //XHRs matching queue.active
 		active: [] //Requests waiting for a response
 	},
 	jobs: {
@@ -27,25 +26,23 @@ window.B3 = {
  * Otherwise, run waiting requests until the number of active requests equals settings.maxactive
  */
 B3.queue.flush = function() {
-	while(B3.queue.xhrs.length < B3.settings.maxactive || B3.settings.maxactive == 0) {
+	while(B3.queue.active.length < B3.settings.maxactive || B3.settings.maxactive == 0) {
 		var job = B3.jobs.index[0];
 		for(var i = 1; i < B3.jobs.index.length; i++) {
-			if(B3.jobs.index[i].args.length > 0) {
+			if(B3.jobs.index[i].waiting.length > 0) {
 				if(B3.jobs.index[i].priority > job.priority) {
-					if(job.args.length > 0) {job.priority++;} //if job == B3.jobs.index[0] and [0] is empty, don't let the priority increase or it'll eat up all the other jobs
+					if(job.waiting.length > 0) {job.priority++;} //if job == B3.jobs.index[0] and [0] is empty, don't let the priority increase or it'll eat up all the other jobs
 					job = B3.jobs.index[i];
 				}
 				else {B3.jobs.index[i].priority++;}
 			}
 		}
-		if(job.args.length > 0) {
+		if(job.waiting.length > 0) {
 			job.priority = 0;
-			var xhr = B3.api.ajax.apply(B3.api, job.args.shift());
-			B3.queue.xhrs.push(xhr);
-			job.xhrs.push(xhr);
 			var request = job.waiting.shift();
 			B3.queue.active.push(request);
 			job.active.push(request);
+			request.send();
 		}
 		else {break;}
 	}
@@ -89,21 +86,18 @@ B3.queue.flush = function() {
  * Requests that receive generic random errors will be retried up to settings.maxretry times.
  * If a failure callback returns true, the request will be retried.
  * The request can be retried as many times as desired, but it will not be automatically resent if it receives a generic error and has been retried more than settings.maxretry times.
- * If a success callback returns false (`=== false`), it will be unflagged as successful and flagged as failed, and then the failure callback will be run.
+ * If a success callback returns false, it will be unflagged as successful and flagged as failed, and then the failure callback will be run.
  */
-B3.api.request = function(method, url, req, upload, success, failure, complete) {
+B3.api.request = function(method, url, params, upload, success, failure, complete) {
 	if(this instanceof B3.jobs.Job) {var job = this;}
 	else {var job = new B3.jobs.Job();}
 	if(typeof url == 'object') { //B3.api.request('GET', {param: value}, function() {});
 		complete = failure;
 		failure = success;
 		success = upload;
-		upload = req;
-		req = url;
+		upload = params;
+		params = url;
 		url = B3.settings.apipath;
-
-		req.format = 'json';
-		req.bot = '1';
 	}
 	if(upload == undefined || typeof upload == 'function') {
 		complete = failure;
@@ -112,50 +106,37 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 		upload = false;
 	}
 
-	//Build an array of requests that don't contain arrays
-	var maxindex = 1;
-	var requests = [];
-	for(var i = 0; i < maxindex; i++) {
-		var clone = {};
-		for(var j in req) {
-			if(req[j] instanceof Array) {
-				if(req[j].length > maxindex) {maxindex = req[j].length;}
-				if(i >= req[j].length) {clone[j] = req[j][req[j].length - 1];}
-				else {clone[j] = req[j][i];}
-			}
-			else {clone[j] = req[j];}
-		}
-		requests.push(clone);
+	if(url == B3.settings.apipath) {
+		params.format = 'json';
+		params.bot = '1';
 	}
 
-	var pending = requests.length;
+	var pending = 0; //set later
 	var succeeded = [];
 	var failed = [];
 
 	var callback = function() {
-		if(this.status == 200) {
-			try {var response = JSON.parse(this.responseText);}
-			catch(err) {response = this.responseText;} //this should fail response.error, responseText == '[]' is inevitable
+		if(this.xhr.status == 200) {
+			try {var response = JSON.parse(this.xhr.responseText);}
+			catch(err) {response = this.xhr.responseText;}
 
-			if(this.responseText == '[]') {
+			if(this.xhr.responseText == '[]' || this.xhr.responseText == '') {
 				var code = 'empty';
 				var info = 'Server returned empty response';
-			}	
+			}
 			else if(response.error) {
 				var code = response.error.code;
 				var info = response.error.info;
 			}
 			else { //success
-				for(var i = 0; i < B3.queue.xhrs.length; i++) {
-					if(B3.queue.xhrs[i] == this) {
-						B3.queue.xhrs.splice(i, 1);
+				for(var i = 0; i < B3.queue.active.length; i++) {
+					if(B3.queue.active[i] == this) {
 						B3.queue.active.splice(i, 1);
 						break;
 					}
 				}
-				for(var i = 0; i < job.xhrs.length; i++) {
-					if(job.xhrs[i] == this) {
-						job.xhrs.splice(i, 1);
+				for(var i = 0; i < job.active.length; i++) {
+					if(job.active[i] == this) {
 						job.active.splice(i, 1);
 						break;
 					}
@@ -163,11 +144,20 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 
 				pending--;
 				succeeded.push(this);
-				if(typeof success == 'function' && success.call(this, response) === false) {
-					pending++;
-					succeeded.pop();
-					code = 'rejected';
-					info = 'Success callback rejected the response.';
+				if(typeof success == 'function') {
+					var good = success.call(this, response);
+					if(good == false) {
+						pending++;
+						succeeded.pop();
+						code = 'rejected';
+						info = 'Success callback rejected the response.';
+					}
+					else {
+						if(pending == 0 && typeof complete == 'function') {complete(succeeded, failed);}
+
+						B3.queue.flush();
+						return;
+					}
 				}
 				else {
 					if(pending == 0 && typeof complete == 'function') {complete(succeeded, failed);}
@@ -177,68 +167,42 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 				}
 			}
 		}
-		else if(this.status == 414 && method == 'GET') { //request too long
-			var xhr = B3.api.ajax('POST', url, B3.queue.active[i], upload, callback);
-			for(var i = 0; i < B3.queue.xhrs.length; i++) {
-				if(B3.queue.xhrs[i] == this) {
-					B3.queue.xhrs.splice(i, 1, xhr);
-					break;
-				}
-			}
-			for(var i = 0; i < job.xhrs.length; i++) {
-				if(job.xhrs[i] == this) {
-					job.xhrs.splice(i, 1, xhr);
-					break;
-				}
-			}
+		else if(this.xhr.status == 414 && this.method == 'GET') { //request too long
+			this.method = 'POST';
+			this.send();
 			return;
 		}
-		else if(this.status == 0) {
+		else if(this.xhr.status == 0) {
 			var code = 'aborted';
 			var info = 'Request was aborted by client';
 		}
 		else {
 			var code = 'http';
-			var info = this.status;
+			var info = this.xhr.status;
 		}
 
 		//failure
 		if(code == 'internal_api_error_DBQueryError') {
-			if(!this.retry) {this.retry = 1;}
-			else {this.retry++;}
+			this.retry++;
 			if(this.retry < B3.settings.maxretry) {
-				var xhr = B3.api.ajax(method, url, B3.queue.active[i], upload, callback);
-				for(var i = 0; i < B3.queue.xhrs.length; i++) {
-					if(B3.queue.xhrs[i] == this) {
-						B3.queue.xhrs.splice(i, 1, xhr);
-						break;
-					}
-				}
-				for(var i = 0; i < job.xhrs.length; i++) {
-					if(job.xhrs[i] == this) {
-						job.xhrs.splice(i, 1, xhr);
-						break;
-					}
-				}
-				return xhr;
+				this.send();
+				return;
 			}
 		}
 
 		var queueindex = undefined;
 		var jobindex = undefined;
 		var request = undefined;
-		for(var i = 0; i < B3.queue.xhrs.length; i++) {
-			if(B3.queue.xhrs[i] == this) {
+		for(var i = 0; i < B3.queue.active.length; i++) {
+			if(B3.queue.active[i] == this) {
 				queueindex = i;
-				B3.queue.xhrs.splice(i, 1);
 				request = B3.queue.active.splice(i, 1)[0];
 				break;
 			}
 		}
-		for(var i = 0; i < job.xhrs.length; i++) {
-			if(job.xhrs[i] == this) {
+		for(var i = 0; i < job.active.length; i++) {
+			if(job.active[i] == this) {
 				jobindex = i;
-				job.xhrs.splice(i, 1);
 				job.active.splice(i, 1);
 				break;
 			}
@@ -248,14 +212,11 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 		if(typeof failure == 'function') {
 			var resend = failure.call(this, code, info);
 			if(resend) {
-				if(!this.retry) {this.retry = 1;}
-				else {this.retry++;}
+				this.retry++;
 				B3.queue.active.splice(queueindex, 0, request);
 				job.active.splice(jobindex, 0, request);
-				var xhr = B3.api.ajax(method, url, request, upload, callback);
-				B3.queue.xhrs.splice(queueindex, 0, xhr);
-				job.xhrs.splice(jobindex, 0, xhr);
-				return xhr;
+				this.send();
+				return;
 			}
 		}
 
@@ -268,89 +229,35 @@ B3.api.request = function(method, url, req, upload, success, failure, complete) 
 		//throw new Error(code + ': ' + info);
 	}
 
+	//Build an array of requests that don't contain arrays
+	var maxindex = 1;
+	var requests = [];
+	for(var i = 0; i < maxindex; i++) {
+		var req = {};
+		for(var j in params) {
+			if(Array.isArray(params[j])) {
+				if(params[j].length > maxindex) {maxindex = params[j].length;}
+				if(i >= params[j].length) {req[j] = params[j][params[j].length - 1];}
+				else {req[j] = params[j][i];}
+			}
+			else {req[j] = params[j];}
+		}
+		requests.push(new B3.jobs.Request(method, url, req, upload, callback));
+	}
+	pending = requests.length;
+
 	for(var i = 0; i < requests.length; i++) {
-		if(B3.settings.maxactive > 0 && B3.queue.xhrs.length > B3.settings.maxactive) {
-			job.args.push([method, url, requests[i], callback]);
+		if(B3.settings.maxactive > 0 && B3.queue.active.length > B3.settings.maxactive) {
 			job.waiting.push(requests[i]);
 		}
 		else {
-			var xhr = B3.api.ajax(method, url, requests[i], upload, callback);
-			B3.queue.xhrs.push(xhr);
 			B3.queue.active.push(requests[i]);
-			job.xhrs.push(xhr);
 			job.active.push(requests[i]);
+			requests[i].send();
 		}
 	}
 
 	return requests;
-}
-
-/*
- * Send a request to the API
- *
- * See parameters to api.request for more information
- *     - success and failure are abstracts; callback is simply called when the request is done
- *
- * Returns a live XMLHttpRequest.
- *
- * Unlike api.request, the request object here may not contain arrays (they will produce API errors).
- * This function will send exactly one request, and does not affect the queue.
- * If the request method is POST and one of the parameter values is longer than settings.longpost (or `upload` is true), the request will be sent as multipart/form-data instead of application/x-www-form-urlencoded.
- * If settings.longpost is 0, `upload` must be true to use multipart/form-data.
- */
-B3.api.ajax = function(method, url, req, upload, callback) {
-	if(typeof url == 'object') {
-		callback = upload;
-		upload = req;
-		req = url;
-		url = B3.settings.apipath;
-	}
-	if(upload == undefined || typeof upload == 'function') {
-		callback = upload;
-		upload = false;
-	}
-
-	var xhr = new XMLHttpRequest();
-	xhr.request = req;
-	xhr.onreadystatechange = function() {
-		if(this.readyState == 4) {
-			this.onreadystatechange = null; //http://stackoverflow.com/questions/12761255/can-xhr-trigger-onreadystatechange-multiple-times-with-readystate-done
-			if(typeof callback == 'function') {callback.call(this);}
-		}
-	}
-	xhr.onabort = function() {
-		this.onabort = null;
-		if(typeof callback == 'function') {callback.call(this);}
-	}
-	if(method == 'POST') {
-		xhr.open(method, url, true);
-		if(!upload && B3.settings.longpost > 0) {
-			for(var i in req) {
-				if(req[i].length > B3.settings.longpost) {upload = true; break;}
-			}
-		}
-		if(upload) {
-			//two characters from the messed up end of the charset, and two numbers between 0 and 65536 in hex
-			var boundary = String.fromCharCode(Math.floor(Math.random() * 128 + 128)) + String.fromCharCode(Math.floor(Math.random() * 128 + 128)) + Math.floor(Math.random() * 65536).toString(16) + Math.floor(Math.random() * 65536).toString(16);
-			xhr.setRequestHeader('Content-Type', 'multipart/form-data; boundary=' + boundary);
-			data = '--' + boundary;
-			for(var i in req) {data += '\nContent-Disposition: form-data; name="' + i + '"\n\n' + req[i] + '\n--' + boundary;}
-			xhr.send(data + '--');
-		}
-		else {
-			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-			var query = '';
-			for(var i in req) {query += i + '=' + encodeURIComponent(req[i]) + '&';}
-			xhr.send(query.substring(0, query.length - 1));
-		}
-	}
-	else {
-		url += '?';
-		for(var i in req) {url += i + '=' + encodeURIComponent(req[i]) + '&';}
-		xhr.open(method, url.substring(0, url.length - 1), true);
-		xhr.send();
-	}
-	return xhr;
 }
 
 B3.jobs.add_listener = function(listener, func) {
@@ -384,9 +291,7 @@ B3.jobs.call_listeners = function(listener) {
 B3.jobs.Job = function(requests) {
 	if(!(this instanceof B3.jobs.Job)) {throw new Error('B3.jobs.Job() must be called with `new`');}
 
-	this.xhrs = [];
 	this.active = [];
-	this.args = [];
 	this.waiting = [];
 
 	this.listeners = {};
@@ -400,6 +305,82 @@ B3.jobs.Job.prototype = B3.api;
 B3.jobs.Job.prototype.add_listener = B3.jobs.add_listener;
 B3.jobs.Job.prototype.remove_listener = B3.jobs.remove_listener;
 B3.jobs.Job.prototype.call_listeners = B3.jobs.call_listeners;
+
+B3.jobs.Request = function(method, url, params, upload, callback) {
+	if(typeof upload == 'function') {
+		callback = upload;
+		upload = false;
+	}
+
+	this.method = method;
+	this.url = url;
+	this.params = params;
+	if(upload) {this.upload = true;}
+	else {this.upload = false;}
+	this.callback = callback;
+
+	this.retry = 0;
+	this.listeners = {};
+
+	this.xhr = new XMLHttpRequest();
+	this.xhr.request = this;
+}
+
+/*
+ * Send a request to the API
+ *
+ * See parameters to api.request for more information
+ *     - success and failure are abstracts; callback is simply called when the request is done
+ *
+ * Unlike api.request, the request object here may not contain arrays (they will produce API errors).
+ * This function will send exactly one request, and does not affect the queue.
+ * If the request method is POST and one of the parameter values is longer than settings.longpost (or `upload` is true), the request will be sent as multipart/form-data instead of application/x-www-form-urlencoded.
+ * If settings.longpost is 0, `upload` must be true to use multipart/form-data.
+ */
+B3.jobs.Request.prototype.send = function() {
+	if(!this.xhr.request) {this.xhr.request = this;}
+	this.xhr.onreadystatechange = function() {
+		if(this.readyState == 4) {
+			this.onreadystatechange = null; //http://stackoverflow.com/questions/12761255/can-xhr-trigger-onreadystatechange-multiple-times-with-readystate-done
+			if(typeof this.request.callback == 'function') {this.request.callback();}
+		}
+	}
+	this.xhr.onabort = function() {
+		this.onabort = null;
+		if(typeof this.request.callback == 'function') {this.request.callback();}
+	}
+
+	if(this.method == 'POST') {
+		this.xhr.open(this.method, this.url, true);
+
+		var upload = this.upload; //B3.settings.longpost may set this to true just for this one particular call
+		if(!upload && B3.settings.longpost > 0) {
+			for(var i in this.params) {
+				if(this.params[i].length > B3.settings.longpost) {upload = true; break;}
+			}
+		}
+		if(upload) {
+			//two characters from the messed up end of the charset, and two numbers between 0 and 65536 in hex
+			var boundary = String.fromCharCode(Math.floor(Math.random() * 128 + 128)) + String.fromCharCode(Math.floor(Math.random() * 128 + 128)) + Math.floor(Math.random() * 65536).toString(16) + Math.floor(Math.random() * 65536).toString(16);
+			this.xhr.setRequestHeader('Content-Type', 'multipart/form-data; boundary=' + boundary);
+			var data = '--' + boundary;
+			for(var i in this.params) {data += '\nContent-Disposition: form-data; name="' + i + '"\n\n' + this.params[i] + '\n--' + boundary;}
+			this.xhr.send(data + '--');
+		}
+		else {
+			this.xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+			var query = '';
+			for(var i in this.params) {query += i + '=' + encodeURIComponent(this.params[i]) + '&';}
+			this.xhr.send(query.substring(0, query.length - 1));
+		}
+	}
+	else {
+		var url = this.url + '?';
+		for(var i in this.params) {url += i + '=' + encodeURIComponent(this.params[i]) + '&';}
+		this.xhr.open(this.method, url.substring(0, url.length - 1), true);
+		this.xhr.send();
+	}
+}
 
 {{MediaWiki:B3.js/prop.js}}
 {{MediaWiki:B3.js/list.js}}
