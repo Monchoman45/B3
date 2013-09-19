@@ -1,6 +1,7 @@
 /*------------------------------------------------------------------------------------------------
      Target modules
   ------------------------------------------------------------------------------------------------*/
+B3.ui.targets = {};
 
 B3.ui.targets.titles = {
 	html: '<label for="B3-targets-titles-select">These targets (one on each line):</label> <textarea id="B3-targets-titles" name="titles"></textarea>',

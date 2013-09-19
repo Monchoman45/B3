@@ -2,9 +2,6 @@ B3.ui = {
 	init: false,
 	window: null,
 	ids: {},
-	render: {},
-	modules: {},
-	targets: {}
 };
 
 B3.settings.framerate = 60;
@@ -19,18 +16,12 @@ link.rel = 'stylesheet';
 link.href = 'http://monchbox.wikia.com/wiki/MediaWiki:B3.js/ui/main.css?action=raw&ctype=text/css&t=' + (new Date()).getTime();
 document.head.appendChild(link);
 
+{{MediaWiki:B3.js/ui/jobs.js}}
 {{MediaWiki:B3.js/ui/modules.js}}
-
 {{MediaWiki:B3.js/ui/targets.js}}
-
 {{MediaWiki:B3.js/ui/animation.js}}
-
 {{MediaWiki:B3.js/ui/selection.js}}
-
 {{MediaWiki:B3.js/ui/render.js}}
-
 {{MediaWiki:B3.js/ui/listeners.js}}
-
 {{MediaWiki:B3.js/ui/load.js}}
-
 {{MediaWiki:B3.js/ui/util.js}}
