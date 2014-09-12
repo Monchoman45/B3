@@ -32,8 +32,8 @@ while len(dirs):
 	for file in dir:
 		if file[0] == '.': continue
 		if file.endswith('.js') or file.endswith('.css'):
-			with open(dirname + file, 'r') as f: files['MediaWiki:Torus.js/' + dirname + file] = f.read()
-			print('\t' + dirname + file + ': ' + str(len(files['MediaWiki:Torus.js/' + dirname + file])))
+			with open(dirname + file, 'r') as f: files['MediaWiki:B3.js/' + dirname + file] = f.read()
+			print('\t' + dirname + file + ': ' + str(len(files['MediaWiki:B3.js/' + dirname + file])))
 		elif not file.endswith('.py'):
 			dirs.append(os.listdir(dirname + file))
 			dirnames.append(dirname + file)
