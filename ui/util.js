@@ -119,3 +119,20 @@ B3.util.paramlist = function(params) {
 		return ul;
 	}
 }
+
+B3.util.page_url = function(page) {
+	if(!page) {return '';} //FIXME: complain?
+
+	page = encodeURIComponent(page);
+	if(B3.m.general) {var url = B3.util.message(B3.m.general['articlepath'], page);} //articlepath from meta
+	else { //no meta (for some probably bad reason), guess /wiki/
+		console.log('B3: util.page_url found no metadata: B3.m.general = ', B3.m.general);
+		var url = '/wiki/' + page;
+	}
+
+	while(url.indexOf('%20') != -1) {url = url.replace('%20', '_');}
+	while(url.indexOf('%2F') != -1) {url = url.replace('%2F', '/');}
+	while(url.indexOf('%3A') != -1) {url = url.replace('%3A', ':');}
+
+	return url;
+}

@@ -2,7 +2,7 @@
      Onload listener / HTML
   ------------------------------------------------------------------------------------------------*/
 
-B3.ui.listeners.window.load = function(event) {
+B3.ui.onload = function(event) {
 	if(wgCanonicalNamespace == 'Special' && wgTitle == 'B3') {
 		document.title = 'B3 - ' + wgSiteName;
 		if(skin == 'oasis') {
@@ -199,4 +199,4 @@ B3.ui.listeners.window.load = function(event) {
 	}
 }
 
-window.addEventListener('load', B3.ui.listeners.window.load);
+B3.add_listener('init', B3.ui.onload);
