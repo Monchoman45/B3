@@ -11,14 +11,14 @@ B3.ui.render.actions = function() {
 	for(var i in B3.ui.modules) {
 		if(!groups[B3.ui.modules[i].group]) {
 			var fieldset = document.createElement('fieldset');
-				fieldset.id = 'B3-module-' + i;
+				fieldset.id = 'b3-module-' + i;
 				var legend = document.createElement('legend');
 					legend.textContent = B3.ui.modules[i].group;
 				fieldset.appendChild(legend);
 			groups[B3.ui.modules[i].group] = fieldset;
 		}
 		var a = document.createElement('a');
-			a.id = 'B3-module-' + encodeURIComponent(B3.ui.modules[i].group) + '-' + encodeURIComponent(B3.ui.modules[i].label);
+			a.id = 'b3-module-' + encodeURIComponent(B3.ui.modules[i].group) + '-' + encodeURIComponent(B3.ui.modules[i].label);
 			a.setAttribute('data-module', i);
 			a.addEventListener('click', B3.ui.listeners.windows.moduleclick);
 			a.textContent = B3.ui.modules[i].label;
@@ -38,7 +38,7 @@ B3.ui.render.targets = function() {
 		var div = document.createElement('div');
 			var radio = document.createElement('input');
 				radio.type = 'radio';
-				radio.id = 'B3-targets-' + i + '-select';
+				radio.id = 'b3-targets-' + i + '-select';
 				radio.name = 'module';
 				radio.value = i;
 			div.appendChild(radio);
@@ -55,7 +55,7 @@ B3.ui.render.targets = function() {
 	form.elements['module'][0].checked = true;
 
 	var next = document.createElement('a');
-		next.id = 'B3-targets-next';
+		next.id = 'b3-targets-next';
 		next.addEventListener('click', B3.ui.listeners.windows.nextclick);
 		next.textContent = 'Next';
 	form.appendChild(next);
@@ -76,7 +76,7 @@ B3.ui.render.params = function() {
 	else {form.appendChild(params);}
 
 	var ready = document.createElement('a');
-		ready.id = 'B3-params-ready';
+		ready.id = 'b3-params-ready';
 		ready.textContent = 'Ready';
 		ready.addEventListener('click', B3.ui.listeners.windows.readyclick);
 	form.appendChild(ready);
@@ -87,21 +87,21 @@ B3.ui.render.run = function() {
 	while(form.children.length > 0) {form.removeChild(form.children[0]);}
 
 	var actionheader = document.createElement('h2');
-		actionheader.id = 'B3-run-action-header';
+		actionheader.id = 'b3-run-action-header';
 		actionheader.textContent = 'Action';
 	form.appendChild(actionheader);
 	var action = document.createElement('p');
-		action.id = 'B3-run-action';
+		action.id = 'b3-run-action';
 		action.textContent = B3.ui.selection.module;
 	form.appendChild(action);
 
 	if(!B3.ui.modules[B3.ui.selection.module].notargets) {
 		var targetsheader = document.createElement('h2');
-			targetsheader.id = 'B3-run-targets-header';
+			targetsheader.id = 'b3-run-targets-header';
 			targetsheader.textContent = 'Targets';
 		form.appendChild(targetsheader);
 		var targets = document.createElement('p');
-			targets.id = 'B3-run-targets';
+			targets.id = 'b3-run-targets';
 			var label = B3.ui.targets[B3.ui.selection.targets.module].label;
 			if(typeof label == 'function') {label = label(B3.ui.selection.targets.params);}
 			if(typeof label == 'string') {targets.innerHTML = label;}
@@ -113,17 +113,17 @@ B3.ui.render.run = function() {
 	}
 
 	var paramsheader = document.createElement('h2');
-		paramsheader.id = 'B3-run-params-header';
+		paramsheader.id = 'b3-run-params-header';
 		paramsheader.textContent = 'Parameters';
 	form.appendChild(paramsheader);
 	var ul = B3.util.paramlist(B3.ui.selection.params);
-		ul.id = 'B3-run-params';
+		ul.id = 'b3-run-params';
 	form.appendChild(ul);
 
 	var confirm = document.createElement('div');
-		confirm.id = 'B3-run-confirm';
+		confirm.id = 'b3-run-confirm';
 		var back = document.createElement('a');
-			back.id = 'B3-run-back';
+			back.id = 'b3-run-back';
 			back.addEventListener('click', B3.ui.listeners.windows.backclick);
 			back.textContent = 'Go back';
 		confirm.appendChild(back);
@@ -131,7 +131,7 @@ B3.ui.render.run = function() {
 			span.textContent = 'Perform this action?';
 		confirm.appendChild(span);
 		var run = document.createElement('a');
-			run.id = 'B3-run-run';
+			run.id = 'b3-run-run';
 			run.addEventListener('click', B3.ui.listeners.windows.runclick);
 			run.textContent = 'Run';
 		confirm.appendChild(run);

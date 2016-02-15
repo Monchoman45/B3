@@ -9,16 +9,22 @@ B3.queue.flush = function() {
 
 	var first_empty = false; //this is used to check if the entire queue is out of runnable tasks
 	while(B3.queue.active.length < B3.settings.maxactive || B3.settings.maxactive == 0) {
-		var task = B3.queue.tasks.shift();
-		B3.queue.tasks.push(task);
+		if(!B3.settings.wpmode) {
+			var task = B3.queue.tasks.shift();
+			B3.queue.tasks.push(task);
 
-		var request = task.next_request();
-		if(!request) {
-			if(first_empty == task) {return true;} //entire queue is working, we have nothing to run
-			else if(!first_empty) {first_empty = task;}
-			continue;
+			var request = task.next_request();
+			if(!request) {
+				if(first_empty == task) {return true;} //entire queue is working, we have nothing to run
+				else if(!first_empty) {first_empty = task;}
+				continue;
+			}
+			else {first_empty = false;} //someone has a task, and they may have more, even if everyone else has none
 		}
-		else {first_empty = false;} //someone has a task, and they may have more, even if everyone else has none
+		else {
+			var request = B3.queue.tasks[0].next_request();
+			if(!request) {return false;}
+		}
 
 		request.add_listener('complete', B3.queue.req_complete);
 		B3.queue.active.push(request);
@@ -52,7 +58,8 @@ B3.queue.req_complete = function(xhr) {
 
 	B3.queue.active.splice(B3.queue.active.indexOf(this), 1);
 	B3.queue.call_listeners('complete', this);
-	B3.queue.flush();
+	if(!B3.settings.wpmode) {B3.queue.flush();}
+	else {setTimeout(B3.queue.flush, B3.settings.wpdelay);}
 }
 
 B3.queue.add_listener = B3.util.add_listener;

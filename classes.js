@@ -1,5 +1,3 @@
-B3.classes = {};
-
 B3.classes.Request = function(method, url, params, options, callback) {
 	if(!(this instanceof B3.classes.Request)) {throw new Error('B3.classes.Request must be called with `new`.');}
 
@@ -76,14 +74,75 @@ B3.classes.Request.prototype.add_listener = B3.util.add_listener;
 B3.classes.Request.prototype.remove_listener = B3.util.remove_listener;
 B3.classes.Request.prototype.call_listeners = B3.util.call_listeners;
 
+B3.classes.List = function() {
+	if(!(this instanceof B3.classes.List)) {throw new Error('B3.classes.List must be called with `new`.');}
+
+	this.pages = {};
+	this.users = {};
+	this.ext = {};
+}
+B3.classes.List.prototype.join = function(list) {
+	for(var i in list) {
+		for(var j in list[i]) {
+			if(!this[i][j]) {this[i][j] = list[i][j];}
+			else {B3.util.softmerge(this[i][j], list[i][j]);}
+		}
+	}
+	return this;
+}
+B3.classes.List.prototype.intersect = function(list) {
+	for(var i in this) {
+		for(var j in this[i]) {
+			if(!list[i][j]) {delete this[i][j];}
+			else {B3.util.softmerge(this[i][j], list[i][j]);}
+		}
+	}
+	return this;
+}
+B3.classes.List.prototype.subtract = function(list) {
+	for(var i in this) {
+		for(var j in this[i]) {
+			if(list[i][j]) {delete this[i][j];}
+			else {B3.util.softmerge(this[i][j], list[i][j]);}
+		}
+	}
+	return this;
+}
+B3.classes.List.prototype.xor = function(list) {
+	for(var i in list) {
+		for(var j in list[i]) {
+			if(this[i][j]) {delete this[i][j];}
+			else {this[i][j] = list[i][j];}
+		}
+	}
+	return this;
+}
+B3.classes.List.prototype.cull = function(list) {
+	return this.xor(list).intersect(list);
+}
+B3.classes.List.prototype.empty = function() {
+	for(var i in this) {
+		for(var j in this[i]) {delete this[i][j];}
+	}
+	return this;
+}
+
 B3.classes.Scheduleable = function() {
 	this.working = false;
 	this.complete = false;
 	this.listeners = {};
 }
 B3.classes.Scheduleable.prototype.next_request = function() {throw new Error('B3: Default function Scheduleable.next_request was called');}
-B3.classes.Scheduleable.prototype.run = function() {throw new Error('B3: Default function Scheduleable.run was called');}
 B3.classes.Scheduleable.prototype.cancel = function() {throw new Error('B3: Default function Scheduleable.cancel was called');}
+B3.classes.Scheduleable.prototype.run = function() {
+	if(!this.working && !this.complete) {
+		this.working = true;
+		B3.queue.push(this);
+		this.add_listener('complete', function() {B3.queue.remove(this);});
+		this.call_listeners('run');
+	}
+	return this;
+}
 
 B3.classes.Scheduleable.prototype.add_listener = B3.util.add_listener;
 B3.classes.Scheduleable.prototype.remove_listener = B3.util.remove_listener;
@@ -124,52 +183,28 @@ B3.classes.Task = function(method, url, params, options, complete, success, fail
 	this.url = url;
 	this.options = options;
 
-	this.data = {
-		pages: {},
-		users: {},
-		ext: {},
-	};
+	this.input_list = new B3.classes.List();
+	this.output_list = new B3.classes.List();
+
+	this.params = params;
 
 	this.active = [];
 	this.waiting = [];
 	this.succeeded = [];
 	this.failed = [];
 
+	this.add_listener('complete', complete);
 	this.add_listener('success', success);
 	this.add_listener('failure', failure);
-	this.add_listener('complete', complete);
 
 	this.length = 0;
 
-	if(typeof params == 'function') {
-		this.add_listener('generate', params);
-		this.compiled = false;
-	}
-	else {
-		if(url == B3.settings.apipath) { //FIXME: do we need this
-			params.format = 'json';
-			params.bot = '1';
-		}
+	var module = B3.modules.action[params.module];
+	if(!module) {throw new Error('B3 Task: tried to create task with invalid module `' + params.module + '`');}
 
-		//Use `params` to populate this.waiting
-		var maxindex = 1;
-		for(var i = 0; i < maxindex; i++) {
-			var p = {};
-			for(var j in params) {
-				if(Array.isArray(params[j])) {
-					if(params[j].length > maxindex) {maxindex = params[j].length;}
-					if(i >= params[j].length) {p[j] = params[j][params[j].length - 1];}
-					else {p[j] = params[j][i];}
-				}
-				else {p[j] = params[j];}
-			}
-			var request = new B3.classes.Request(this.method, this.url, p, this.options, this.req_callback);
-			request.task = this;
-			this.waiting.push(request);
-			this.length++;
-		}
-		this.compiled = true;
-	}
+	for(var i in module.param_generators) {this.add_listener('generate_' + i, module.param_generators[i]);}
+
+	this.compiled = false;
 }
 B3.classes.Task.prototype = Object.create(B3.classes.Scheduleable.prototype);
 
@@ -211,6 +246,8 @@ B3.classes.Task.prototype.req_callback = function(xhr) {
 }
 
 B3.classes.Task.prototype.req_success = function(request, response) {
+	this.merge_data(response);
+
 	var callbacks = this.call_listeners('success', request, response);
 	for(var i = 0; i < callbacks.length; i++) {
 		if(callbacks[i] === false) { //someone rejected this
@@ -220,7 +257,7 @@ B3.classes.Task.prototype.req_success = function(request, response) {
 	}
 
 	this.succeeded.push(request);
-	if(this.waiting.length == 0) {this.done();}
+	if(this.waiting.length == 0 && this.active.length == 0) {this.done();}
 }
 
 B3.classes.Task.prototype.req_failure = function(request, code, info) {
@@ -242,30 +279,41 @@ B3.classes.Task.prototype.req_failure = function(request, code, info) {
 	}
 
 	this.failed.push(request);
-	if(this.waiting.length == 0) {this.done();}
+	if(this.waiting.length == 0 && this.active.length == 0) {this.done();}
 }
 
 B3.classes.Task.prototype.compile = function() {
 	if(this.compiled) {return false;}
 
-	for(var i in this.data) {
-		for(var j in this.data[i]) {
+	for(var i in this.input_list) {
+		if(!this.listeners['generate_' + i] || this.listeners['generate_' + i].length == 0) {continue;}
+
+		for(var j in this.input_list[i]) {
 			var params = {};
-			this.call_listeners('generate', params, this.data[i][j], i);
+			this.call_listeners('generate_' + i, params, this.input_list[i][j]);
 			if(Object.getOwnPropertyNames(params).length > 0) {
 				if(this.url == B3.settings.apipath) { //FIXME: do we need this
 					params.format = 'json';
 					params.bot = '1';
 				}
-				var request = new B3.classes.Request(this.method, this.url, params, this.options, this.req_callback);
-				request.task = this;
-				this.waiting.push(request);
-				this.length++;
+
+				this.add(params);
 			}
 		}
 	}
+	this.call_listeners('compile');
 	this.compiled = true;
 	return true;
+}
+
+B3.classes.Task.prototype.add = function(params) {
+	var reqs = B3.util.flatten(params);
+	for(var i = 0; i < reqs.length; i++) {
+		var request = new B3.classes.Request(this.method, this.url, reqs[i], this.options, this.req_callback);
+		request.task = this;
+		this.waiting.push(request);
+		this.length++;
+	}
 }
 
 B3.classes.Task.prototype.next_request = function() {
@@ -278,21 +326,10 @@ B3.classes.Task.prototype.next_request = function() {
 	return request;
 }
 
-B3.classes.Task.prototype.run = function() {
-	if(!this.working && !this.complete) {
-		this.working = true;
-		B3.queue.push(this);
-		this.add_listener('complete', function() {B3.queue.remove(this);});
-		this.call_listeners('run');
-		return true;
-	}
-	else {return false;}
-}
-
 B3.classes.Task.prototype.done = function() {
 	this.working = false;
 	this.complete = true;
-	this.call_listeners('complete', this.data);
+	this.call_listeners('complete', this.output_list);
 }
 
 B3.classes.Task.prototype.cancel = function() {
@@ -309,11 +346,27 @@ B3.classes.Task.prototype.cancel = function() {
 	else {this.done();} //nothing was running, so everything is definitely dead
 }
 
-B3.classes.Job = function(data, tasks, complete, success, failure) {
+B3.classes.Task.prototype.merge_data = function(query) {
+	for(var i in query) {
+		if(i == 'query') {
+			for(var j in query[i]) {
+				if(B3.modules.query_mergers[j]) {
+					for(var k = 0; k < B3.modules.query_mergers[j].length; k++) {B3.modules.query_mergers[j][k].call(this, query[i][j], j);}
+				}
+			}
+		}
+		if(B3.modules.data_mergers[i]) {
+			for(var j = 0; j < B3.modules.data_mergers[i].length; j++) {B3.modules.data_mergers[i][j].call(this, query[i], i);}
+		}
+	}
+}
+
+/* Job, for scheduling Tasks
+ * each task is run and completed in order
+ */
+B3.classes.Job = function(tasks, complete, success, failure) {
 	if(!(this instanceof B3.classes.Job)) {throw new Error('B3.classes.Job must be called with `new`.');}
 	B3.classes.Scheduleable.call(this);
-
-	this.data = data;
 
 	this.tasks = [];
 	this.index = 0;
@@ -328,10 +381,8 @@ B3.classes.Job.prototype = Object.create(B3.classes.Scheduleable.prototype);
 
 B3.classes.Job.prototype.add = function(tasks) {
 	for(var i = 0; i < tasks.length; i++) {
-		if(!(tasks[i] instanceof B3.classes.Scheduleable)) {throw new Error('B3: Tried to add non-schedulable object to Job');}
+		if(!(tasks[i] instanceof B3.classes.Scheduleable)) {throw new Error('B3: Tried to add non-schedulable object to Job:', tasks[i]);}
 
-		if(!this.data) {this.data = tasks[i].data;} //if data wasn't given to us, use the data of the first task (it might be filled already)
-		else {tasks[i].data = this.data;} //give everyone a pointer to the same data
 		tasks[i].job = this;
 		tasks[i].add_listener('complete', this.task_complete);
 		this.tasks.push(tasks[i]);
@@ -341,12 +392,15 @@ B3.classes.Job.prototype.add = function(tasks) {
 
 B3.classes.Job.prototype.next_request = function() {return this.tasks[this.index].next_request();}
 B3.classes.Job.prototype.task_complete = function() {
-	this.job.data.last_task = this.job.tasks[this.job.index];
 	this.job.index++;
 	if(this.job.index == this.job.tasks.length) {this.job.done();}
+	else {this.job.tasks[this.job.index].input_list = this.ouput_list;}
 }
-B3.classes.Job.prototype.run = B3.classes.Task.prototype.run;
-B3.classes.Job.prototype.done = B3.classes.Task.prototype.done;
+B3.classes.Job.prototype.done = function() {
+	this.working = false;
+	this.complete = true;
+	this.call_listeners('complete', this.tasks[this.tasks.length - 1].output_list);
+}
 B3.classes.Job.prototype.cancel = function() {
 	//keep this.index where it is
 	for(var i = this.index; i < this.tasks.length; i++) {this.tasks[i].remove_listener('complete', this.task_complete);}
@@ -354,11 +408,14 @@ B3.classes.Job.prototype.cancel = function() {
 	//TODO: what do we do with tasks that were never run?
 }
 
-B3.classes.AsyncJob = function(data, tasks, complete, success, failure) {
+/* AsyncJob, for running multiple Scheduleables at the same time
+ * mostly, this allows you to bind listeners to a group of Tasks or Jobs that can be run at the same time
+ */
+B3.classes.AsyncJob = function(list, tasks, complete, success, failure) {
 	if(!(this instanceof B3.classes.AsyncJob)) {throw new Error('B3.classes.AsyncJob must be called with `new`.');}
 	B3.classes.Scheduleable.call(this);
 
-	this.data = data;
+	this.input_list = list;
 
 	this.queue = [];
 	this.completed = [];
@@ -375,9 +432,8 @@ B3.classes.AsyncJob.prototype.add = function(tasks) {
 	for(var i = 0; i < tasks.length; i++) {
 		if(!(tasks[i] instanceof B3.classes.Scheduleable)) {throw new Error('B3: Tried to add non-schedulable object to Job');}
 
-		if(!this.data) {this.data = tasks[i].data;} //if data wasn't given to us, use the data of the first task (it might be filled already)
-		else {tasks[i].data = this.data;} //give everyone a pointer to the same data
 		tasks[i].job = this;
+		tasks[i].input_list = this.input_list;
 		tasks[i].add_listener('complete', this.task_complete);
 		this.queue.push(tasks[i]);
 	}
@@ -406,8 +462,13 @@ B3.classes.AsyncJob.prototype.next_request = function() {
 
 	return request;
 }
-B3.classes.AsyncJob.prototype.run = B3.classes.Task.prototype.run;
-B3.classes.AsyncJob.prototype.done = B3.classes.Task.prototype.done;
+B3.classes.AsyncJob.prototype.done = function() {
+	this.working = false;
+	this.complete = true;
+	var lists = [];
+	for(var i = 0; i < this.tasks.length; i++) {lists.push(this.tasks[i].output_list);}
+	this.call_listeners('complete', lists);
+}
 B3.classes.AsyncJob.prototype.cancel = function() {
 	for(var i = 0; i < this.tasks.length; i++) {this.tasks[i].cancel();}
 }

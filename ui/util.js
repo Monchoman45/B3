@@ -121,9 +121,9 @@ B3.util.paramlist = function(params) {
 }
 
 B3.util.page_url = function(page) {
-	if(!page) {return '';} //FIXME: complain?
+	if(!page) {return '/wiki/';} //FIXME: complain?
 
-	page = encodeURIComponent(page);
+	page = encodeURIComponent(B3.util.normalize_pagename(page));
 	if(B3.m.general) {var url = B3.util.message(B3.m.general['articlepath'], page);} //articlepath from meta
 	else { //no meta (for some probably bad reason), guess /wiki/
 		console.log('B3: util.page_url found no metadata: B3.m.general = ', B3.m.general);

@@ -4,7 +4,7 @@
 B3.ui.targets = {};
 
 B3.ui.targets.titles = {
-	html: '<label for="B3-targets-titles-select">These targets (one on each line):</label> <textarea id="B3-targets-titles" name="titles"></textarea>',
+	html: '<label for="b3-targets-titles-select">These targets (one on each line):</label> <textarea id="b3-targets-titles" name="titles"></textarea>',
 	label: function(params) {
 		var ol = document.createElement('ol');
 			ol.start = 0;
@@ -49,7 +49,7 @@ B3.ui.targets.titles = {
 };
 
 B3.ui.targets.category = {
-	html: '<label for="B3-targets-category-select">Pages in Category:</label><input id="B3-targets-category" name="category" />',
+	html: '<label for="b3-targets-category-select">Pages in Category:</label><input id="b3-targets-category" name="category" />',
 	prepare: function(params) {
 		if(params.category.toLowerCase().indexOf('category:') != 0) {params.category = 'Category:' + params.category;}
 		params.category = B3.util.normalize_pagename(params.category);
@@ -66,7 +66,7 @@ B3.ui.targets.category = {
 		return [text, a];
 	},
 	fetch: function(params, success, failure) {
-		B3.query.generator(B3.list.categorymembers(params.category, 'max', {}), [
+		B3.action.generator(B3.list.categorymembers(params.category, 'max', {}), [
 			B3.api.token('edit'),
 		], success, false, failure).run();
 	}

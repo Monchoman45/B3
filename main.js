@@ -1,16 +1,34 @@
+/************** Browser Based Bot **************
+ *              A JS bot framework             *
+ * ------------------------------------------- *
+ *    Written and maintained by Monchoman45    *
+ *      https://github.com/Monchoman45/B3      *
+ ***********************************************/
+
+if(window.B3) {throw new Error('B3 already loaded');}
+
 window.B3 = {
-	version: '003.0',
+	version: 103,
+	pretty_version: '1.0.3',
 
 	init: false,
 
 	token: '',
 
-	query: {},
 	action: {},
 	prop: {},
 	list: {},
 	meta: {},
 	api: {},
+
+	classes: {},
+
+	modules: {
+		action: {},
+		query: {},
+		data_mergers: {},
+		query_mergers: {},
+	},
 
 	m: {}, //FIXME:
 
@@ -24,9 +42,14 @@ window.B3 = {
 		longpost: 8000, //POST requests where one parameter value is this length or greater will use multipart/form-data
 		maxactive: 10, //Maximum active requests 
 		maxretry: 5, //Maximum number of times to resend requests that are generically bounced
+
+		wpmode: false, //Wikipedia mode, for lame bureaucracy
+		wpdelay: 1000, //Time between requests (in ms)
 	},
 
 	listeners: {},
+
+	util: {},
 };
 
 //Set apipath and indexpath
@@ -48,27 +71,22 @@ if(window.mw && mw.user && mw.user.tokens && mw.user.tokens.values && mw.user.to
 	B3.token = mw.user.tokens.values.editToken;
 }
 
-{{MediaWiki:B3.js/util.js}}
-{{MediaWiki:B3.js/queue.js}}
-{{MediaWiki:B3.js/classes.js}}
-{{MediaWiki:B3.js/query.js}}
-{{MediaWiki:B3.js/action.js}}
-{{MediaWiki:B3.js/prop.js}}
-{{MediaWiki:B3.js/list.js}}
-{{MediaWiki:B3.js/meta.js}}
+{{util.js}}
+{{queue.js}}
+{{classes.js}}
+{{modules.js}}
 
-B3.add_listener = B3.util.add_listener;
-B3.remove_listener = B3.util.remove_listener;
-B3.call_listeners = B3.util.call_listeners;
+{{query.js}}
+{{action.js}}
+{{prop.js}}
+{{list.js}}
+{{meta.js}}
 
 B3.onload = function() {
-	if(!B3.token) {
-		B3.token = '.';
-		B3.api.token_regen();
-	}
+	if(!B3.token) {B3.api.token_regen();}
 
 	//FIXME: pull these props from a setting
-	B3.query.meta([
+	B3.action.query('', [
 		B3.meta.siteinfo(['general', 'namespaces', 'namespacealiases', 'statistics', 'usergroups']),
 		B3.meta.userinfo(['blockinfo', 'hasmsg', 'groups', 'rights', 'changeablegroups', 'options', 'ratelimits']),
 		B3.meta.allmessages(['revertpage']), //TODO: other useful messages
@@ -78,9 +96,10 @@ B3.onload = function() {
 	B3.init = true;
 }
 
-window.addEventListener('load', B3.onload);
+if(document.readyState == 'complete') {B3.onload();}
+else {window.addEventListener('load', B3.onload);}
 
 
 
 
-{{MediaWiki:B3.js/ui/main.js}}
+{{ui/main.js}}

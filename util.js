@@ -1,5 +1,3 @@
-B3.util = {};
-
 B3.util.debug = function() {console.log.apply(console, arguments);}
 B3.util.null = function() {}
 
@@ -42,13 +40,36 @@ B3.util.call_listeners = function(listener) {
 	else {return false;}
 }
 
+B3.add_listener = B3.util.add_listener;
+B3.remove_listener = B3.util.remove_listener;
+B3.call_listeners = B3.util.call_listeners;
+
+B3.util.flatten = function(params) {
+	var ret = [];
+	var maxindex = 1;
+	for(var i = 0; i < maxindex; i++) {
+		var p = {};
+		for(var j in params) {
+			if(Array.isArray(params[j])) {
+				if(params[j].length > maxindex) {maxindex = params[j].length;}
+				if(i >= params[j].length) {p[j] = params[j][params[j].length - 1];}
+				else {p[j] = params[j][i];}
+			}
+			else {p[j] = params[j];}
+		}
+		ret.push(p);
+	}
+	return ret;
+}
+
+B3.util.cap = function(str) {return str.charAt(0).toUpperCase() + str.substring(1);}
 B3.util.normalize_pagename = function(page) {
 	if(page.indexOf(':') != -1) { //Namespace:Title
 		var namespace = page.substring(0, page.indexOf(':'));
 		var title = page.substring(page.indexOf(':') + 1);
-		page = Torus.util.cap(namespace) + ':' + Torus.util.cap(title);
+		page = B3.util.cap(namespace) + ':' + B3.util.cap(title);
 	}
-	else {page = Torus.util.cap(page);} //Title (mainspace)
+	else {page = B3.util.cap(page);} //Title (mainspace)
 	while(page.indexOf('_') != -1) {page = page.replace('_', ' ');}
 	return page;
 }
@@ -60,8 +81,34 @@ B3.util.find = function(arr, prop, val) {
 	return false;
 }
 
+B3.util.copy = function(obj) {
+	if(Array.isArray(obj)) {
+		var copy = [];
+		for(var i = 0; i < obj.length; i++) {copy.push(obj[i]);}
+		return copy;
+	}
+	else if(typeof obj == 'object') {
+		var copy = {};
+		for(var i in obj) {copy[i] = obj[i];}
+		return copy;
+	}
+	else {return obj;}
+}
+B3.util.deepcopy = function(obj) {
+	if(Array.isArray(obj)) {
+		var copy = [];
+		for(var i = 0; i < obj.length; i++) {copy.push(B3.util.deepcopy(obj[i]));}
+		return copy;
+	}
+	else if(typeof obj == 'object') {
+		var copy = {};
+		for(var i in obj) {copy[i] = B3.util.deepcopy(obj[i]);}
+		return copy;
+	}
+	else {return obj;}
+}
+
 B3.util.softmerge = function(dest, source, prefix) {
-	if(!source || !dest) {return;}
 	if(!prefix) {prefix = '';}
 
 	for(var i in source) {
@@ -69,7 +116,6 @@ B3.util.softmerge = function(dest, source, prefix) {
 	}
 }
 B3.util.hardmerge = function(dest, source, prefix) {
-	if(!source || !dest) {return;}
 	if(!prefix) {prefix = '';}
 
 	for(var i in source) {dest[prefix + i] = source[i];}
@@ -86,10 +132,12 @@ B3.util.driver_merge = function(params, modules) {
 	for(var i = 0; i < modules.length; i++) {
 		for(var j in modules[i]) {
 			if((j == 'prop' || j == 'list' || j == 'meta') && params[j].indexOf(modules[i][j]) == -1) {params[j].push(modules[i][j]);}
+			else if(j == 'qmodule') {params.qmodule.push(modules[i][j]);}
 			else if(!params[j]) {params[j] = modules[i][j];}
 			else {} //TODO: throw error?
 		}
 	}
+
 	if(params.prop.length > 0) {params.prop = params.prop.join('|');}
 	else {delete params.prop;}
 	if(params.list.length > 0) {params.list = params.list.join('|');}
@@ -109,223 +157,40 @@ B3.util.message = function(message) {
 	return message;
 }
 
-//merge result.query into Task.data
-//FIXME: this function sucks
-B3.util.query_merge = function(data, query) {
-	for(var module in query) {
-		switch(module) {
-			case 'limits':
-			case 'query-continue':
-			case 'warnings': //FIXME:
-				break;
+B3.util.pagelist = function(pages) {
+	var list = new B3.classes.List();
+	for(var i = 0; i < pages.length; i++) {list.pages[pages[i]] = {title: pages[i]};}
+	return list;
+}
+B3.util.userlist = function(users) {
+	var list = new B3.classes.List();
+	for(var i = 0; i < users.length; i++) {list.users[users[i]] = {name: users[i]};}
+	return list;
+}
 
-			case 'normalized':
-				for(var i = 0; i < query[module].length; i++) {
-					var from = query[module][i].from;
-					var to = query[module][i].to;
-					if(data.pages[from]) {
-						data.pages[to] = data.pages[from];
-						delete data.pages[from];
-					}
-				}
-				break;
+B3.util.output_join = function() {this.output_list.join(this.input_list);}
+B3.util.output_intersect = function() {this.output_list.intersect(this.input_list);}
+B3.util.output_subtract = function() {this.output_list.subtract(this.input_list);}
+B3.util.output_xor = function() {this.output_list.xor(this.input_list);}
+B3.util.output_cull = function() {this.output_list.cull(this.input_list);}
+B3.util.output_empty = function() {this.output_list.empty();}
 
-			case 'query':
-				for(module in query.query) {
-					switch(module) {
-						case 'pages': //?action=query&titles=anything
-							for(var i in query.query[module]) {
-								var title = query.query[module][i].title;
-								if(data.pages[title]) {B3.util.hardmerge(data.pages[title], query.query[module][i]);}
-								else {data.pages[title] = query.query[module][i];}
-							}
-							break;
+B3.util.load_js = function(url) {
+	var js = document.createElement('script');
+		js.className = 'b3-js';
+		js.src = url;
+		js.type = 'text/javascript';
+	document.head.appendChild(js);
+	return js;
+}
 
-						//pages
-						case 'allimages':
-						case 'allpages':
-						case 'alllinks':
-						case 'allcategories':
-						case 'backlinks':
-						case 'categorymembers':
-						case 'deletedrevs':
-						case 'embeddedin':
-						case 'filearchive':
-						case 'imageusage':
-						case 'iwbacklinks':
-						case 'langbacklinks':
-						case 'logevents':
-						case 'recentchanges':
-						case 'search':
-						case 'tags':
-						case 'usercontribs':
-						case 'watchlist':
-						case 'watchlistraw':
-						case 'exturlusage':
-						case 'random':
-						case 'protectedtitles':
-						case 'query.querypage':
-						//case 'checkuser':
-						//case 'checkuserlog':
-						//case 'abuselog':
-						//case 'abusefilters':
-							for(var i = 0; i < query.query[module].length; i++) {
-								var title = query.query[module][i].title;
-								if(data.pages[title]) {B3.util.hardmerge(data.pages[title], query.query[module][i]);}
-								else {data.pages[title] = query.query[module][i];}
-							}
-							break;
-
-						//users
-						case 'users':
-						case 'allusers':
-						case 'blocks':
-							for(var i = 0; i < query.query[module].length; i++) {
-								var user = query.query[module][i].name;
-								if(data.users[user]) {B3.util.hardmerge(data.users[user], query.query[module][i]);}
-								else {data.users[user] = query.query[module][i];}
-							}
-							break;
-
-						//meta
-						case 'general':
-						case 'namespaces':
-						case 'statistics':
-						case 'rightsinfo':
-						case 'extensiontags':
-						case 'functionhooks':
-						case 'protocols':
-						case 'userinfo':
-							B3.m[module] = query.query[module];
-							break;
-						case 'namespacealiases':
-							B3.m[module] = {};
-							for(var i = 0; i < query.query[module].length; i++) {
-								var id = query.query[module][i].id;
-								if(!B3.m[module][id]) {B3.m[module][id] = [];}
-								B3.m[module][id].push(query.query[module][i]['*']);
-							}
-							break;
-						case 'specialpagealiases':
-							B3.m[module] = {};
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].realname] = query.query[module][i].aliases;}
-							break;
-						case 'magicwords':
-						case 'usergroups':
-						case 'extensions':
-							B3.m[module] = {};
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].name] = query.query[module][i];}
-							break;
-						case 'interwikimap':
-							if(!B3.m[module]) {B3.m[module] = {};}
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].prefix] = query.query[module][i];}
-							break;
-						case 'dbreplag':
-							if(!B3.m[module]) {B3.m[module] = {};}
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].host] = query.query[module][i].lag;}
-							break;
-						case 'fileextensions':
-							B3.m[module] = [];
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module].push(query.query[module][i].ext);}
-							break;
-						case 'languages':
-						case 'skins':
-							B3.m[module] = {};
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].code] = query.query[module][i]['*'];}
-							break;
-						case 'extensions':
-							B3.m[module] = {};
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].name] = query.query[module][i].subscribers;}
-							break;
-						case 'allmessages':
-							if(!B3.m[module]) {B3.m[module] = {};}
-							for(var i = 0; i < query.query[module].length; i++) {B3.m[module][query.query[module][i].name] = query.query[module][i]['*'];}
-							break
-						default: //FIXME: complain
-					}
-				}
-				break;
-
-			//actions
-			case 'delete':
-				var page = data.pages[query[module].title];
-				if(page) {
-					page.missing = '';
-					if(page.new !== undefined) {delete page.new;}
-					if(page.lastrevid) {delete page.lastrevid;}
-					if(page.length) {delete page.length;}
-					if(page.pageid) {delete page.pageid;}
-				}
-				break;
-			case 'undelete':
-				var page = data.pages[query[module].title];
-				if(page) {
-					if(page.missing !== undefined) {delete page.missing;}
-				}
-				break;
-			case 'edit':
-				var page = data.pages[query[module].title];
-				if(page) {
-					page.lastrevid = query[module].newrevid;
-
-					if(page.missing !== undefined) {
-						delete page.missing;
-						page.pageid = query[module].pageid;
-					}
-					else if(page.new !== undefined) {delete page.new;}
-				}
-				break;
-			case 'rollback':
-				var page = data.pages[query[module].title];
-				if(page) {page.lastrevid = query[module].revid;}
-				break;
-			case 'move':
-				var page = data.pages[query[module].from];
-				if(page) {
-					delete data.pages[query[module].from];
-					page.title = query[module].to;
-					data.pages[page.title] = page;
-				}
-				page = data.pages[query[module].talkfrom];
-				if(page) {
-					delete data.pages[query[module].talkfrom];
-					page.title = query[module].talkto;
-					data.pages[page.title] = page;
-				}
-				break;
-			case 'protect':
-				var page = data.pages[query[module].title];
-				if(page) {
-					page.protections = [];
-					for(var i = 0; i < query[module].protections.length; i++) {
-						var prot = {};
-						for(var j in query[module].protections[j]) {
-							if(j == 'expiry') {prot[j] = query[module].protections[j];}
-							else { //this one minor difference is so annoying
-								prot.type = j;
-								prot.level = query[module].protections[j];
-							}
-						}
-						page.protections.push(prot);
-					}
-				}
-				break;
-			case 'userrights':
-				var user = data.users[query[module].user];
-				if(user) {
-					if(user.groups) {
-						for(var i = 0; i < query[module].removed.length; i++) {
-							var index = user.groups.indexOf(query[module].removed[i]);
-							if(index != -1) {user.groups.splice(index, 1);}
-						}
-						for(var i = 0; i < query[module].added.length; i++) {user.groups.push(query[module].added[i]);}
-					}
-					else {user.groups = query[module].added;}
-				}
-				break;
-			default:
-				console.log('B3.util.query_merge: found unknown module `' + module + '`: ', query[module]);
-				break;
-		}
-	}
+B3.util.load_css = function(url) {
+	var css = document.createElement('link');
+		css.className = 'b3-css';
+		css.href = url;
+		css.rel = 'stylesheet';
+		css.type = 'text/css';
+		css.media = 'screen';
+	document.head.appendChild(css);
+	return css;
 }

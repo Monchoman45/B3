@@ -1,67 +1,67 @@
-#B3 {
+#b3 {
 	position:relative;
 	border:5px solid #9cf;
 }
 
-#B3-controls {
+#b3-controls {
 	position:absolute;
 	top:0;
 	bottom:0;
 	left:0;
 	background-color:#efefef;
 }
-#B3-controls-titlebar {
+#b3-controls-titlebar {
 	position:absolute;
 	top:0;
 	right:0;
 	left:0;
 	border-bottom:3px solid #9cf;
 }
-#B3-controls-titlebar a,
-#B3-controls-titlebar span {
+#b3-controls-titlebar a,
+#b3-controls-titlebar span {
 	display:inline-block;
 	padding:.2em 0;
 	text-align:center;
 }
-#B3-controls-titlebar a {
+#b3-controls-titlebar a {
 	width:13%;
 	cursor:pointer;
 }
-#B3-controls-titlebar span {
+#b3-controls-titlebar span {
 	width:5%;
 	color:#000;
 	cursor:default;
 }
-#B3-controls-titlebar a:hover {
+#b3-controls-titlebar a:hover {
 	background-color:#def;
 	text-decoration:none;
 }
-#B3-controls-titlebar a.hilighted,
-a.hilighted + span.B3-titlebar-arrow {
-	background-color:#9cf !important; /* overrides #B3-controls-titlebar a.disabled:hover */
-	color:#fff !important; /* overrides #B3-controls-titlebar span (el.class + el.class apparently isn't very specific) */
+#b3-controls-titlebar a.hilighted,
+a.hilighted + span.b3-titlebar-arrow {
+	background-color:#9cf !important; /* overrides #b3-controls-titlebar a.disabled:hover */
+	color:#fff !important; /* overrides #b3-controls-titlebar span (el.class + el.class apparently isn't very specific) */
 }
-#B3-controls-titlebar a.disabled {
-	color:#999 !important; /* overrides #B3-controls-titlebar a.hilighted */
+#b3-controls-titlebar a.disabled {
+	color:#999 !important; /* overrides #b3-controls-titlebar a.hilighted */
 }
-#B3-controls-titlebar a.disabled:hover {
+#b3-controls-titlebar a.disabled:hover {
 	background:none;
 	cursor:default;
 }
-#B3-controls-titlebar a.active {
-	color:#fc3 !important; /* overrides #B3-controls-titlebar a.hilighted */
+#b3-controls-titlebar a.active {
+	color:#fc3 !important; /* overrides #b3-controls-titlebar a.hilighted */
 }
-#B3-controls-titlebar-settings {
+#b3-controls-titlebar-settings {
 	float:right;
 }
-#B3-controls-windows {
+#b3-controls-windows {
 	position:absolute;
 	bottom:0;
 	right:0;
 	left:0;
 	overflow-x:hidden;
 }
-#B3-controls-windows > div {
+#b3-controls-windows > div {
 	position:absolute;
 	display:none;
 	width:100%;
@@ -69,20 +69,20 @@ a.hilighted + span.B3-titlebar-arrow {
 	overflow-y:auto;
 }
 
-#B3-controls-windows > div > form {
+#b3-controls-windows > div > form {
 	margin:1em;
 }
 
-#B3-controls-windows-actions legend {
+#b3-controls-windows-actions legend {
 	background-color:inherit;
 	font-size:150%;
 }
-#B3-controls-windows-actions a {
+#b3-controls-windows-actions a {
 	cursor:pointer;
 }
-#B3-targets-next,
-#B3-params-ready,
-#B3-run-confirm {
+#b3-targets-next,
+#b3-params-ready,
+#b3-run-confirm {
 	display:block;
 	margin-top:2em;
 	padding:.5em 0;
@@ -92,23 +92,23 @@ a.hilighted + span.B3-titlebar-arrow {
 	text-decoration:none;
 	cursor:pointer;
 }
-#B3-run-confirm {
+#b3-run-confirm {
 	cursor:default;
 }
-#B3-run-confirm a {
+#b3-run-confirm a {
 	text-decoration:none;
 	cursor:pointer;
 }
-#B3-run-back {
+#b3-run-back {
 	float:left;
 	margin-left:.5em;
 }
-#B3-run-run {
+#b3-run-run {
 	float:right;
 	margin-right:.5em;
 }
 
-#B3-resize {
+#b3-resize {
 	position:absolute;
 	top:0;
 	bottom:0;
@@ -117,7 +117,7 @@ a.hilighted + span.B3-titlebar-arrow {
 	background-color:#9cf;
 }
 
-#B3-queue {
+#b3-queue {
 	position:absolute;
 	top:0;
 	bottom:0;
@@ -125,7 +125,7 @@ a.hilighted + span.B3-titlebar-arrow {
 	width:20em;
 	background-color:#ddd;
 }
-#B3-queue-active {
+#b3-queue-active {
 	position:absolute;
 	top:1em;
 	right:1em;
@@ -138,14 +138,14 @@ a.hilighted + span.B3-titlebar-arrow {
 	overflow-x:hidden;
 	overflow-y:auto;
 }
-#B3-queue-resize {
+#b3-queue-resize {
 	position:absolute;
 	right:1em;
 	left:1em;
 	height:5px;
 	cursor:row-resize;
 }
-#B3-queue-waiting {
+#b3-queue-waiting {
 	position:absolute;
 	bottom:1em;
 	right:1em;
